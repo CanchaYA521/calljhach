@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { useState, type FormEvent } from "react";
 
+import { readApiResponse } from "@/lib/http";
 import type { KnowledgeChatMessage } from "@/lib/types";
 
 type QuickHelpSheetProps = {
@@ -49,11 +50,11 @@ export function QuickHelpSheet({ activeContextLabel }: QuickHelpSheetProps) {
           scope: "all",
         }),
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiResponse<{
         answer?: string;
         citations?: KnowledgeChatMessage["citations"];
         error?: string;
-      };
+      }>(response, "No se pudo responder la consulta.");
 
       if (!response.ok || !payload.answer) {
         throw new Error(payload.error ?? "No se pudo responder la consulta.");

@@ -4,6 +4,13 @@ import clsx from "clsx";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+import { readApiResponse } from "@/lib/http";
+import {
+  getKnowledgeFileTooLargeMessage,
+  isKnowledgeFileTooLarge,
+  isKnowledgeUploadTooLargeMessage,
+  MAX_KNOWLEDGE_FILE_SIZE_LABEL,
+} from "@/lib/knowledge-upload";
 import {
   KNOWLEDGE_AUDIT_ACTION_LABELS,
   KNOWLEDGE_PRODUCT_LABELS,
@@ -32,6 +39,14 @@ type KnowledgeSettingsShellProps = {
 
 function getDefaultSelectedDocumentId(documents: KnowledgeDocumentRecord[]) {
   return documents[0]?.id ?? null;
+}
+
+function getUploadErrorMessage(message: string | undefined, fallback: string) {
+  if (message && isKnowledgeUploadTooLargeMessage(message)) {
+    return getKnowledgeFileTooLargeMessage();
+  }
+
+  return message ?? fallback;
 }
 
 export function KnowledgeSettingsShell({
@@ -113,6 +128,11 @@ export function KnowledgeSettingsShell({
       return;
     }
 
+    if (isKnowledgeFileTooLarge(selectedFile)) {
+      setUploadError(getKnowledgeFileTooLargeMessage());
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -125,11 +145,11 @@ export function KnowledgeSettingsShell({
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiResponse<{
         error?: string;
         document?: KnowledgeDocumentRecord | null;
         audit?: KnowledgeDocumentAuditRecord | null;
-      };
+      }>(response, "No se pudo procesar el archivo.");
 
       if (payload.document) {
         setDocuments((current) => [
@@ -144,7 +164,9 @@ export function KnowledgeSettingsShell({
       }
 
       if (!response.ok) {
-        setUploadError(payload.error ?? "No se pudo procesar el archivo.");
+        setUploadError(
+          getUploadErrorMessage(payload.error, "No se pudo procesar el archivo."),
+        );
         return;
       }
 
@@ -176,6 +198,11 @@ export function KnowledgeSettingsShell({
       return;
     }
 
+    if (isKnowledgeFileTooLarge(updateFile)) {
+      setUpdateError(getKnowledgeFileTooLargeMessage());
+      return;
+    }
+
     setUpdatingDocumentId(selectedDocument.id);
 
     try {
@@ -188,14 +215,16 @@ export function KnowledgeSettingsShell({
         method: "PATCH",
         body: formData,
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiResponse<{
         error?: string;
         document?: KnowledgeDocumentRecord | null;
         audit?: KnowledgeDocumentAuditRecord | null;
-      };
+      }>(response, "No se pudo actualizar el diagrama.");
 
       if (!response.ok || !payload.document) {
-        throw new Error(payload.error ?? "No se pudo actualizar el diagrama.");
+        throw new Error(
+          getUploadErrorMessage(payload.error, "No se pudo actualizar el diagrama."),
+        );
       }
 
       setDocuments((current) =>
@@ -239,10 +268,10 @@ export function KnowledgeSettingsShell({
       const response = await fetch(`/api/knowledge/documents/${document.id}`, {
         method: "DELETE",
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiResponse<{
         error?: string;
         documentId?: string;
-      };
+      }>(response, "No se pudo borrar el diagrama.");
 
       if (!response.ok || !payload.documentId) {
         throw new Error(payload.error ?? "No se pudo borrar el diagrama.");
@@ -345,7 +374,7 @@ export function KnowledgeSettingsShell({
                 type="file"
               />
               <p className="mt-1 text-xs muted-text">
-                Límite 15 MB. Si un flujo de Excel está armado con formas, exportarlo a PDF suele dar un mejor resultado.
+                Límite {MAX_KNOWLEDGE_FILE_SIZE_LABEL}. Si un flujo de Excel está armado con formas, exportarlo a PDF suele dar un mejor resultado.
               </p>
             </div>
 

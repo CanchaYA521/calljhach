@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { MAX_KNOWLEDGE_FILE_SIZE_BYTES } from "@/lib/knowledge-upload";
 import type {
   KnowledgeDocumentAuditAction,
   KnowledgeDocumentAuditRecord,
@@ -14,8 +15,6 @@ export const KNOWLEDGE_DOCUMENT_SELECT =
 
 export const KNOWLEDGE_DOCUMENT_AUDIT_SELECT =
   "id, document_id, user_id, action, title, product_type, file_name, mime_type, file_size_bytes, created_at";
-
-export const MAX_KNOWLEDGE_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 
 const SUPPORTED_MIME_TYPES = new Set([
   "application/pdf",

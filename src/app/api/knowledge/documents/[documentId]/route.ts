@@ -4,11 +4,15 @@ import { z } from "zod";
 import { getKnowledgeProductLabel, sanitizeStorageFileName } from "@/lib/knowledge";
 import { processKnowledgeDocument } from "@/lib/knowledge-processing";
 import {
+  getKnowledgeFileTooLargeMessage,
+  getKnowledgeUploadRequestError,
+  MAX_KNOWLEDGE_FILE_SIZE_BYTES,
+} from "@/lib/knowledge-upload";
+import {
   buildKnowledgeAuditInsert,
   KNOWLEDGE_DOCUMENT_AUDIT_SELECT,
   KNOWLEDGE_DOCUMENT_SELECT,
   knowledgeUploadSchema,
-  MAX_KNOWLEDGE_FILE_SIZE_BYTES,
   resolveKnowledgeMimeType,
   toKnowledgeDocumentAuditRecord,
   toKnowledgeDocumentRecord,
@@ -95,7 +99,19 @@ export async function PATCH(
   }
 
   const currentDocument = normalizeDocument(existingDocument);
-  const formData = await request.formData();
+  let formData: FormData;
+
+  try {
+    formData = await request.formData();
+  } catch (error) {
+    const requestError = getKnowledgeUploadRequestError(error);
+
+    return NextResponse.json(
+      { error: requestError.error },
+      { status: requestError.status },
+    );
+  }
+
   const file = formData.get("file");
 
   if (!(file instanceof File)) {
@@ -119,8 +135,8 @@ export async function PATCH(
 
   if (file.size > MAX_KNOWLEDGE_FILE_SIZE_BYTES) {
     return NextResponse.json(
-      { error: "El archivo supera el límite de 15 MB." },
-      { status: 400 },
+      { error: getKnowledgeFileTooLargeMessage() },
+      { status: 413 },
     );
   }
 
