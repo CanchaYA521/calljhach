@@ -20,7 +20,7 @@ export async function createClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // Server Components cannot always persist cookies. Middleware handles refreshes.
+            // Server Components cannot always persist cookies during render.
           }
         },
       },

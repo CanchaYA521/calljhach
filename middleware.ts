@@ -1,78 +1,58 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-function withCopiedCookies(source: NextResponse, target: NextResponse) {
-  source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie);
-  });
+function getSupabaseAuthCookiePrefix() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-  return target;
+  if (!supabaseUrl) {
+    return null;
+  }
+
+  try {
+    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+
+    return projectRef ? `sb-${projectRef}-auth-token` : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasSupabaseSession(request: NextRequest) {
+  const authCookiePrefix = getSupabaseAuthCookiePrefix();
+
+  if (!authCookiePrefix) {
+    return false;
+  }
+
+  return request.cookies
+    .getAll()
+    .some(
+      ({ name }) =>
+        name === authCookiePrefix || name.startsWith(`${authCookiePrefix}.`),
+    );
 }
 
 export async function middleware(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabasePublishableKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabasePublishableKey) {
-    throw new Error(
-      "Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY para ejecutar el middleware.",
-    );
-  }
-
-  let response = NextResponse.next({
-    request,
-  });
-
-  const supabase = createServerClient(
-    supabaseUrl,
-    supabasePublishableKey,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value);
-          });
-
-          response = NextResponse.next({
-            request,
-          });
-
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    },
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const { pathname } = request.nextUrl;
+  const hasSession = hasSupabaseSession(request);
   const isDashboardPage = pathname.startsWith("/dashboard");
   const isLoginPage = pathname === "/login";
   const isHomePage = pathname === "/";
 
-  if (!user && isDashboardPage) {
+  if (!hasSession && isDashboardPage) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
 
-    return withCopiedCookies(response, NextResponse.redirect(redirectUrl));
+    return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && (isHomePage || isLoginPage)) {
+  if (hasSession && (isHomePage || isLoginPage)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/dashboard";
 
-    return withCopiedCookies(response, NextResponse.redirect(redirectUrl));
+    return NextResponse.redirect(redirectUrl);
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
